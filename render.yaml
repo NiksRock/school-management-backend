@@ -1,0 +1,66 @@
+services:
+  - type: web
+    name: school-management-system-api
+    runtime: docker
+    branch: main
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: 'off'
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: DB_SSL_REJECT_UNAUTHORIZED
+        value: "true"
+      - key: DB_SYNC
+        value: "false"
+      - key: DB_LOGGING
+        value: "false"
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: ACCESS_TOKEN_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: ACCESS_TOKEN_TTL_SECONDS
+        value: "900"
+      - key: REFRESH_TOKEN_TTL_SECONDS
+        value: "604800"
+      - key: COOKIE_SAME_SITE
+        value: "none"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_DOMAIN
+        sync: false
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: API_RATE_LIMIT_LIMIT
+        value: "120"
+      - key: API_RATE_LIMIT_TTL_SECONDS
+        value: "60"
+      - key: API_RATE_LIMIT_BLOCK_SECONDS
+        value: "60"
+      - key: API_AUTH_RATE_LIMIT_LIMIT
+        value: "10"
+      - key: API_AUTH_RATE_LIMIT_TTL_SECONDS
+        value: "60"
+      - key: API_AUTH_RATE_LIMIT_BLOCK_SECONDS
+        value: "300"
+      - key: API_CACHE_ROLES_TTL_SECONDS
+        value: "60"
+      - key: ADMIN_NAME
+        value: "System Admin"
+      - key: ADMIN_EMAIL
+        value: admin@yourschool.com
+      - key: ADMIN_PASSWORD
+        sync: false

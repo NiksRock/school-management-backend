@@ -48,6 +48,10 @@ Swagger UI will be available at:
 - `http://localhost:3000/docs`
 - `http://localhost:3000/docs-json`
 
+Health checks are available at:
+
+- `http://localhost:3000/health`
+
 ## Frontend Integration
 
 The backend is configured for cookie-based auth. Your frontend should:

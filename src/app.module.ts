@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { CachePolicyInterceptor } from './common/interceptors/cache-policy.interceptor';
@@ -11,6 +13,7 @@ import appConfig from './config/app.config';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
+  controllers: [AppController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
@@ -98,6 +101,7 @@ import { RedisModule } from './redis/redis.module';
     AuthModule,
   ],
   providers: [
+    AppService,
     RedisThrottlerStorageService,
     {
       provide: APP_GUARD,
