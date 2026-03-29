@@ -1,3 +1,91 @@
+export interface AppConfig {
+  app: {
+    nodeEnv: string;
+    port: number;
+    frontendOrigins: string[];
+  };
+
+  api: {
+    rateLimit: {
+      defaultLimit: number;
+      defaultTtlMs: number;
+      defaultBlockDurationMs: number;
+      authLimit: number;
+      authTtlMs: number;
+      authBlockDurationMs: number;
+    };
+    cache: {
+      rolesTtlSeconds: number;
+    };
+  };
+
+  database: {
+    url?: string;
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    name: string;
+    synchronize: boolean;
+    logging: boolean;
+    ssl: boolean | { rejectUnauthorized: boolean };
+    enableChannelBinding: boolean;
+  };
+
+  redis: {
+    url?: string;
+    restUrl?: string;
+    restToken?: string;
+    host: string;
+    port: number;
+    db: number;
+    password?: string;
+    tls?: {
+      rejectUnauthorized: boolean;
+    };
+  };
+
+  auth: {
+    accessTokenSecret: string;
+    refreshTokenSecret: string;
+    accessTokenTtlSeconds: number;
+    refreshTokenTtlSeconds: number;
+    accessCookieName: string;
+    refreshCookieName: string;
+    cookieDomain?: string;
+    cookieSameSite: 'lax' | 'strict' | 'none';
+    cookieSecure: boolean;
+  };
+
+  bootstrapAdmin: {
+    name: string;
+    email: string;
+    password: string;
+  };
+
+  logging: {
+    level: string;
+    serviceName: string;
+    logRedisOperations: boolean;
+    loki: {
+      url?: string;
+      username?: string;
+      password?: string;
+      batchSize: number;
+      flushIntervalMs: number;
+      retryBackoffMs: number;
+      timeoutMs: number;
+      maxQueueSize: number;
+    };
+  };
+
+  metrics: {
+    defaultMetricsEnabled: boolean;
+    dbPingIntervalMs: number;
+    redisPingIntervalMs: number;
+    slowDbQueryThresholdMs: number;
+  };
+}
 function parseNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -163,7 +251,7 @@ function resolveRedisTls(
   };
 }
 
-export default () => {
+export default (): AppConfig => {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const logLevel = parseLogLevel(
     process.env.LOG_LEVEL,

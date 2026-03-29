@@ -17,7 +17,8 @@ import type { ApiSuccessResponse } from '../api-response/api-response.types';
  * the ApiSuccessResponse envelope (e.g. health checks, raw text responses).
  */
 export const SKIP_RESPONSE_WRAP = 'skip:response:wrap';
-export const SkipResponseWrap = () => SetMetadata(SKIP_RESPONSE_WRAP, true);
+export const SkipResponseWrap = (): MethodDecorator =>
+  SetMetadata(SKIP_RESPONSE_WRAP, true);
 
 // ── ResponseMessage decorator ─────────────────────────────────────────────────
 /**

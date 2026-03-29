@@ -1,4 +1,4 @@
-import { applyDecorators, HttpStatus } from '@nestjs/common';
+import { applyDecorators, HttpStatus, Type } from '@nestjs/common';
 import { ApiExtraModels, ApiResponse, getSchemaPath } from '@nestjs/swagger';
 
 /**
@@ -9,12 +9,10 @@ import { ApiExtraModels, ApiResponse, getSchemaPath } from '@nestjs/swagger';
  *   @ApiWrappedResponse(SafeUserResponseDto)           // 200
  *   @ApiWrappedResponse(AuthResponseDto, HttpStatus.CREATED)  // 201
  */
-export const ApiWrappedResponse = <
-  T extends abstract new (...args: unknown[]) => unknown,
->(
-  model: T,
+export const ApiWrappedResponse = <TModel extends Type<unknown>>(
+  model: TModel,
   status: number = HttpStatus.OK,
-) =>
+): MethodDecorator =>
   applyDecorators(
     ApiExtraModels(model),
     ApiResponse({
@@ -49,11 +47,9 @@ export const ApiWrappedResponse = <
 /**
  * Documents paginated list responses.
  */
-export const ApiWrappedPaginatedResponse = <
-  T extends abstract new (...args: unknown[]) => unknown,
->(
-  model: T,
-) =>
+export const ApiWrappedPaginatedResponse = <TModel extends Type<unknown>>(
+  model: TModel,
+): MethodDecorator =>
   applyDecorators(
     ApiExtraModels(model),
     ApiResponse({

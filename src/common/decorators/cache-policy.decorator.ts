@@ -7,5 +7,5 @@ export type CachePolicyOptions = {
 
 export const CACHE_POLICY_METADATA = 'cache-policy';
 
-export const CachePolicy = (options: CachePolicyOptions) =>
-  SetMetadata(CACHE_POLICY_METADATA, options);
+export const CachePolicy = (policy: CachePolicyOptions): MethodDecorator =>
+  SetMetadata('cache-policy', policy);
