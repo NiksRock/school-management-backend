@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { RequestContextService } from '../../logging/request-context.service';
 import { RedisService } from '../../redis/redis.service';
 import {
   ACCESS_TOKEN_TYPE,
+  isRefreshSessionRecord,
   type RefreshSessionRecord,
   type SessionPayload,
 } from '../auth.types';
@@ -57,8 +59,10 @@ export class JwtGuard implements CanActivate {
       throw new UnauthorizedException('Invalid access token type');
     }
 
+    // FIXED HIGH-03: validator passed to getJson so corrupt cache returns null
     const session = await this.redisService.getJson<RefreshSessionRecord>(
       this.getSessionKey(payload.sessionId),
+      isRefreshSessionRecord,
     );
 
     if (!session || session.userId !== payload.sub) {
@@ -66,13 +70,18 @@ export class JwtGuard implements CanActivate {
     }
 
     const user = await this.userRepository.findOne({
-      where: {
-        id: payload.sub,
-      },
+      where: { id: payload.sub },
     });
 
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
+    }
+
+    // FIXED MED-09: suspended users can no longer use existing access tokens.
+    // Deletes the Redis session so refresh also fails immediately.
+    if (user.status !== 'ACTIVE') {
+      await this.redisService.delete(this.getSessionKey(payload.sessionId));
+      throw new ForbiddenException('Your account is not active');
     }
 
     req.user = user;
@@ -108,7 +117,6 @@ export class JwtGuard implements CanActivate {
   ): string | undefined {
     const cookies = req.cookies as Record<string, unknown> | undefined;
     const cookieValue = cookies?.[cookieName];
-
     return typeof cookieValue === 'string' ? cookieValue : undefined;
   }
 }

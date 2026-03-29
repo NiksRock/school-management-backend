@@ -84,33 +84,47 @@ export class RedisService implements OnModuleDestroy {
     ttlSeconds?: number,
   ): Promise<void> {
     const payload = JSON.stringify(value);
-
     await this.set(key, payload, ttlSeconds);
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
     const command: Array<string | number> = ['SET', key, value];
-
     if (ttlSeconds && ttlSeconds > 0) {
       command.push('EX', ttlSeconds);
     }
-
     await this.executeCommand(command);
   }
 
-  async getJson<T>(key: string): Promise<T | null> {
+  /**
+   * FIXED HIGH-03: Optional `validate` parameter lets callers enforce a runtime
+   * type guard. On guard failure the entry is treated as a cache miss (null),
+   * preventing corrupted/stale data from being silently cast to T.
+   */
+  async getJson<T>(
+    key: string,
+    validate?: (value: unknown) => value is T,
+  ): Promise<T | null> {
     const payload = await this.get(key);
-
     if (!payload) {
       return null;
     }
 
-    return JSON.parse(payload) as T;
+    const parsed: unknown = JSON.parse(payload);
+
+    if (validate !== undefined && !validate(parsed)) {
+      this.appLogger.warnWithMetadata(
+        'Redis cache entry failed validation — treating as cache miss',
+        { key },
+        RedisService.name,
+      );
+      return null;
+    }
+
+    return parsed as T;
   }
 
   async get(key: string): Promise<string | null> {
-    const payload = await this.executeCommand<string | null>(['GET', key]);
-    return payload;
+    return this.executeCommand<string | null>(['GET', key]);
   }
 
   async delete(key: string): Promise<void> {
@@ -145,7 +159,6 @@ export class RedisService implements OnModuleDestroy {
     if (!this.client) {
       throw new Error('Redis client is not configured');
     }
-
     return this.client;
   }
 
@@ -174,10 +187,7 @@ export class RedisService implements OnModuleDestroy {
       this.metricsService.recordRedisOperationError(String(name), 'socket');
       this.appLogger.errorWithMetadata(
         'Redis socket command failed',
-        {
-          backend: 'socket',
-          command: String(name),
-        },
+        { backend: 'socket', command: String(name) },
         RedisService.name,
         error,
       );
@@ -217,6 +227,7 @@ export class RedisService implements OnModuleDestroy {
         backend: 'upstash_rest',
       });
 
+      // payload.result is T from the Upstash response shape
       return payload.result as T;
     } catch (error) {
       this.metricsService.recordRedisOperationError(
@@ -225,10 +236,7 @@ export class RedisService implements OnModuleDestroy {
       );
       this.appLogger.errorWithMetadata(
         'Upstash REST command failed',
-        {
-          backend: 'upstash_rest',
-          command: commandName,
-        },
+        { backend: 'upstash_rest', command: commandName },
         RedisService.name,
         error,
       );
@@ -244,13 +252,9 @@ export class RedisService implements OnModuleDestroy {
     if (!this.enableRedisOperationLogs) {
       return;
     }
-
     this.appLogger.debugWithMetadata(
       message,
-      {
-        command: commandName,
-        ...metadata,
-      },
+      { command: commandName, ...metadata },
       RedisService.name,
     );
   }

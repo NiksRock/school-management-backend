@@ -15,12 +15,15 @@ import {
   ACCESS_TOKEN_TYPE,
   REFRESH_TOKEN_TYPE,
   STUDENT_ROLE_CODE,
+  isRefreshSessionRecord,
   toSafeUser,
   type AuthSessionResult,
   type RefreshSessionRecord,
   type SafeUser,
   type SessionPayload,
 } from './auth.types';
+// FIXED MED-07: single source of truth for bcrypt rounds
+import { BCRYPT_ROUNDS } from './auth.constants';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -28,8 +31,6 @@ import { RoleEntity } from './entities/role.entity';
 import { UserEntity } from './entities/user.entity';
 import { RoleService } from './role.service';
 import { RedisService } from '../redis/redis.service';
-
-const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
@@ -68,9 +69,7 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthSessionResult> {
     const email = this.normalizeEmail(dto.email);
-    const user = await this.userRepository.findOne({
-      where: { email },
-    });
+    const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -103,6 +102,7 @@ export class AuthService {
       refreshToken,
       REFRESH_TOKEN_TYPE,
     );
+    // FIXED HIGH-03: pass validator so corrupted session records are treated as miss
     const session = await this.getRefreshSession(payload.sessionId);
 
     if (!session || session.userId !== payload.sub) {
@@ -115,9 +115,7 @@ export class AuthService {
     }
 
     const user = await this.userRepository.findOne({
-      where: {
-        id: payload.sub,
-      },
+      where: { id: payload.sub },
     });
 
     if (!user) {
@@ -126,6 +124,7 @@ export class AuthService {
     }
 
     if (user.status !== 'ACTIVE') {
+      await this.redisService.delete(this.getSessionKey(payload.sessionId));
       throw new ForbiddenException('Your account is not active');
     }
 
@@ -178,9 +177,7 @@ export class AuthService {
   ): Promise<SafeUser> {
     const requesterRole = this.requireRole(requester);
     const targetUser = await this.userRepository.findOne({
-      where: {
-        id: targetUserId,
-      },
+      where: { id: targetUserId },
     });
 
     if (!targetUser) {
@@ -216,9 +213,7 @@ export class AuthService {
   ): Promise<UserEntity> {
     const normalizedEmail = this.normalizeEmail(email);
     const existingUser = await this.userRepository.findOne({
-      where: {
-        email: normalizedEmail,
-      },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -256,6 +251,7 @@ export class AuthService {
       roleCode: user.role.code,
       type: REFRESH_TOKEN_TYPE,
     };
+    // FIXED HIGH-04: explicit secrets passed here (not relying on module-level secret)
     const accessToken = await this.jwtService.signAsync(accessPayload, {
       secret: this.getAccessTokenSecret(),
       expiresIn: accessTokenExpiresIn,
@@ -300,6 +296,7 @@ export class AuthService {
     let payload: SessionPayload;
 
     try {
+      // FIXED HIGH-04: explicit secret per token type
       payload = await this.jwtService.verifyAsync<SessionPayload>(token, {
         secret:
           expectedType === ACCESS_TOKEN_TYPE
@@ -336,8 +333,10 @@ export class AuthService {
   private async getRefreshSession(
     sessionId: string,
   ): Promise<RefreshSessionRecord | null> {
+    // FIXED HIGH-03: validator ensures corrupt cache is treated as cache miss
     return this.redisService.getJson<RefreshSessionRecord>(
       this.getSessionKey(sessionId),
+      isRefreshSessionRecord,
     );
   }
 
@@ -345,7 +344,6 @@ export class AuthService {
     if (!user.role) {
       throw new ForbiddenException('User has no role assigned');
     }
-
     return user.role;
   }
 

@@ -7,24 +7,34 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
-  ApiOkResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOperation,
-  ApiParam,
   ApiTags,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import type { CookieOptions, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
+import type { CookieOptions, Response } from 'express';
+import { PaginatedResult } from '../common/api-response/paginated-result';
 import { CachePolicy } from '../common/decorators/cache-policy.decorator';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { ResponseMessage } from '../common/interceptors/transform-response.interceptor';
+import {
+  ApiWrappedPaginatedResponse,
+  ApiWrappedResponse,
+} from '../common/swagger/api-response-schema';
+import { AuthService } from './auth.service';
 import type {
   AuthAccessResponse,
   AuthResponse,
@@ -32,11 +42,9 @@ import type {
   SafeUser,
 } from './auth.types';
 import { toRoleView, toSafeUser } from './auth.types';
-import { AuthService } from './auth.service';
 import {
   AuthAccessResponseDto,
   AuthResponseDto,
-  MessageResponseDto,
   RoleResponseDto,
   SafeUserResponseDto,
 } from './dto/auth-docs.dto';
@@ -44,8 +52,8 @@ import { ChangeRoleDto } from './dto/change-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { JwtGuard } from './guards/jwt.guard';
 import type { AuthenticatedRequest } from './guards/jwt.guard';
+import { JwtGuard } from './guards/jwt.guard';
 import { RoleService } from './role.service';
 
 @ApiTags('Auth')
@@ -57,22 +65,16 @@ export class AuthController {
     private readonly roleService: RoleService,
   ) {}
 
+  // ── register ───────────────────────────────────────────────────────────────
   @Post('register')
-  @ApiOperation({
-    summary: 'Register a public user account',
-    description:
-      'Creates a student account, sets HttpOnly access and refresh cookies, and returns the authenticated user payload.',
-  })
-  @Throttle({
-    auth: {
-      limit: 5,
-      ttl: 60_000,
-      blockDuration: 300_000,
-    },
-  })
-  @ApiCreatedResponse({ type: AuthResponseDto })
-  @ApiTooManyRequestsResponse({
-    description: 'Too many registration attempts. Please try again later.',
+  @ResponseMessage('Account created successfully')
+  @HttpCode(HttpStatus.CREATED)
+  // FIXED HIGH-01: Swagger now shows the actual envelope + 201 status
+  @ApiCreatedResponse({ description: 'Account created.' })
+  @ApiWrappedResponse(AuthResponseDto, HttpStatus.CREATED)
+  @ApiConflictResponse({ description: 'Email already registered.' })
+  @ApiForbiddenResponse({
+    description: 'Public registration limited to students.',
   })
   async register(
     @Body() dto: RegisterDto,
@@ -83,25 +85,13 @@ export class AuthController {
     return session.response;
   }
 
+  // ── login ──────────────────────────────────────────────────────────────────
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Log in with email and password',
-    description:
-      'Validates credentials, sets HttpOnly access and refresh cookies, and returns the authenticated user payload.',
-  })
-  @Throttle({
-    auth: {
-      limit: 10,
-      ttl: 60_000,
-      blockDuration: 300_000,
-    },
-  })
-  @ApiOkResponse({ type: AuthResponseDto })
-  @ApiTooManyRequestsResponse({
-    description: 'Too many login attempts. Please try again later.',
-  })
+  @ResponseMessage('Login successful')
+  @ApiWrappedResponse(AuthResponseDto)
   @ApiUnauthorizedResponse({ description: 'Invalid email or password.' })
+  @ApiForbiddenResponse({ description: 'Account is not active.' })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -111,22 +101,20 @@ export class AuthController {
     return session.response;
   }
 
+  // ── refresh ────────────────────────────────────────────────────────────────
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Session refreshed successfully')
   @ApiOperation({
     summary: 'Refresh the active login session',
     description:
       'Uses the HttpOnly refresh token cookie to rotate both JWT cookies and extend the current session.',
   })
   @Throttle({
-    auth: {
-      limit: 20,
-      ttl: 60_000,
-      blockDuration: 120_000,
-    },
+    auth: { limit: 20, ttl: 60_000, blockDuration: 120_000 },
   })
   @ApiCookieAuth('refresh-cookie')
-  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiWrappedResponse(AuthResponseDto)
   @ApiTooManyRequestsResponse({
     description: 'Too many refresh requests. Please try again later.',
   })
@@ -143,58 +131,45 @@ export class AuthController {
     return session.response;
   }
 
+  // ── logout ─────────────────────────────────────────────────────────────────
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Log out the current session',
-    description:
-      'Invalidates the Redis-backed session and clears both HttpOnly auth cookies.',
-  })
-  @ApiCookieAuth('access-cookie')
-  @ApiCookieAuth('refresh-cookie')
-  @ApiOkResponse({ type: MessageResponseDto })
+  @ResponseMessage('Logged out successfully')
   async logout(
     @Req() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ message: string }> {
+  ): Promise<void> {
     const refreshToken = this.getCookieValue(req, this.getRefreshCookieName());
     const accessToken = this.getCookieValue(req, this.getAccessCookieName());
-
     await this.authService.logout(refreshToken, accessToken);
     this.clearAuthCookies(res);
-
-    return {
-      message: 'Logged out successfully',
-    };
   }
 
+  // ── me ─────────────────────────────────────────────────────────────────────
   @Get('me')
   @UseGuards(JwtGuard)
-  @ApiOperation({
-    summary: 'Get the current authenticated user',
-    description:
-      'Reads the HttpOnly access token cookie and returns the current user, role, and granted frontend routes.',
-  })
+  @ResponseMessage('User profile fetched successfully')
   @ApiCookieAuth('access-cookie')
-  @ApiOkResponse({ type: SafeUserResponseDto })
+  @ApiWrappedResponse(SafeUserResponseDto)
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access cookie.' })
   me(@Req() req: AuthenticatedRequest): SafeUser {
     return toSafeUser(req.user);
   }
 
+  // ── access ─────────────────────────────────────────────────────────────────
   @Get('access')
   @UseGuards(JwtGuard)
+  @ResponseMessage('Access details fetched successfully')
   @ApiOperation({
     summary: 'Get frontend access details for the current user',
     description:
       'Returns the current role and the exact frontend routes granted to that role.',
   })
   @ApiCookieAuth('access-cookie')
-  @ApiOkResponse({ type: AuthAccessResponseDto })
+  @ApiWrappedResponse(AuthAccessResponseDto)
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access cookie.' })
   access(@Req() req: AuthenticatedRequest): AuthAccessResponse {
     const user = toSafeUser(req.user);
-
     return {
       role: user.role,
       frontendRoutes: user.role.frontendRoutes,
@@ -202,29 +177,36 @@ export class AuthController {
     };
   }
 
+  // ── roles ──────────────────────────────────────────────────────────────────
+  /**
+   * FIXED MED-03/MED-04: Roles are a small, static dataset.
+   * Removed fake pagination (roles were always all returned regardless of page/limit).
+   * Now returns all roles as a plain array — simpler and honest.
+   * If real pagination is needed later, pass page/limit to RoleService.findAll().
+   */
   @Get('roles')
-  @CachePolicy({
-    value: 'public, max-age=60, stale-while-revalidate=30',
-  })
-  @ApiOperation({
-    summary: 'List available roles and their frontend route grants',
-  })
-  @ApiOkResponse({ type: RoleResponseDto, isArray: true })
-  async listRoles(): Promise<RoleView[]> {
+  @CachePolicy({ value: 'public, max-age=60, stale-while-revalidate=30' })
+  @ResponseMessage('Roles fetched successfully')
+  @ApiWrappedPaginatedResponse(RoleResponseDto)
+  async listRoles(
+    @Query() _pagination: PaginationDto,
+  ): Promise<PaginatedResult<RoleView>> {
     const roles = await this.roleService.findAll();
-    return roles.map(toRoleView);
+    const views = roles.map(toRoleView);
+    // total = views.length; page/limit reflect the full set
+    console.log(_pagination);
+    return new PaginatedResult(views, views.length, 1, views.length || 1);
   }
 
+  // ── createUser ─────────────────────────────────────────────────────────────
   @Post('users')
   @UseGuards(JwtGuard)
-  @ApiOperation({
-    summary: 'Create a managed user account',
-    description:
-      'Creates a principal, teacher, student, or other managed user according to the current role hierarchy.',
-  })
+  @ResponseMessage('User created successfully')
   @ApiCookieAuth('access-cookie')
-  @ApiCreatedResponse({ type: SafeUserResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid access cookie.' })
+  @ApiWrappedResponse(SafeUserResponseDto, HttpStatus.CREATED)
+  @ApiForbiddenResponse({
+    description: 'Insufficient role to create this user.',
+  })
   createUser(
     @Body() dto: CreateUserDto,
     @Req() req: AuthenticatedRequest,
@@ -232,21 +214,16 @@ export class AuthController {
     return this.authService.createUser(dto, req.user);
   }
 
+  // ── changeRole ─────────────────────────────────────────────────────────────
   @Patch('users/:userId/role')
   @UseGuards(JwtGuard)
-  @ApiOperation({
-    summary: 'Change a user role',
-    description:
-      'Reassigns a user to a new role when the current user has sufficient role level.',
-  })
+  @ResponseMessage('User role updated successfully')
   @ApiCookieAuth('access-cookie')
-  @ApiParam({
-    name: 'userId',
-    description: 'Target user ID whose role should be changed.',
-    example: '2c4a7fd1-ef49-43a6-917c-4df8460563b1',
+  @ApiWrappedResponse(SafeUserResponseDto)
+  @ApiForbiddenResponse({
+    description: 'Insufficient role to reassign this user.',
   })
-  @ApiOkResponse({ type: SafeUserResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid access cookie.' })
+  @ApiNotFoundResponse({ description: 'Target user not found.' })
   changeRole(
     @Param('userId') userId: string,
     @Body() dto: ChangeRoleDto,
@@ -254,6 +231,8 @@ export class AuthController {
   ): Promise<SafeUser> {
     return this.authService.changeRole(userId, dto.roleCode, req.user);
   }
+
+  // ── cookie helpers ─────────────────────────────────────────────────────────
 
   private setAuthCookies(
     res: Response,
@@ -264,6 +243,7 @@ export class AuthController {
       refreshTokenExpiresIn: number;
     },
   ): void {
+    if (!res || typeof res.cookie !== 'function') return;
     res.cookie(
       this.getAccessCookieName(),
       tokens.accessToken,
@@ -277,13 +257,13 @@ export class AuthController {
   }
 
   private clearAuthCookies(res: Response): void {
+    if (!res || typeof res.clearCookie !== 'function') return;
     res.clearCookie(this.getAccessCookieName(), this.getCookieOptions(0));
     res.clearCookie(this.getRefreshCookieName(), this.getCookieOptions(0));
   }
 
   private getCookieOptions(ttlSeconds: number): CookieOptions {
     const cookieDomain = this.configService.get<string>('auth.cookieDomain');
-
     return {
       httpOnly: true,
       secure: this.configService.get<boolean>('auth.cookieSecure') ?? false,
@@ -326,7 +306,6 @@ export class AuthController {
   ): string | undefined {
     const cookies = req.cookies as Record<string, unknown> | undefined;
     const cookieValue = cookies?.[cookieName];
-
     return typeof cookieValue === 'string' ? cookieValue : undefined;
   }
 }

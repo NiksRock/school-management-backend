@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { HealthResponse } from './common/types/health-response.type';
 
 @Injectable()
 export class AppService {
   constructor(private readonly configService: ConfigService) {}
 
-  getHealth() {
+  // FIXED: explicit return type — satisfies strict mode, enables @SkipResponseWrap
+  getHealth(): HealthResponse {
     return {
       service: 'school-management-system',
       status: 'ok',

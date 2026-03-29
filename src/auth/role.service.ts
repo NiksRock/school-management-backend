@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { AppLogger } from '../logging/app-logger.service';
 import { RedisService } from '../redis/redis.service';
 import {
   DEFAULT_FRONTEND_ROUTE_DEFINITIONS,
@@ -13,11 +14,12 @@ import { RoleEntity } from './entities/role.entity';
 
 @Injectable()
 export class RoleService {
-  private readonly logger = new Logger(RoleService.name);
-
+  // FIXED: replaced NestJS native Logger with injected AppLogger so
+  // RoleService warnings reach Loki like every other service.
   constructor(
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly appLogger: AppLogger,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
     @InjectRepository(PermissionEntity)
@@ -37,16 +39,15 @@ export class RoleService {
         return cachedRoles;
       }
     } catch (error) {
-      this.logger.warn(
-        `Failed to read roles cache: ${error instanceof Error ? error.message : 'unknown error'}`,
+      this.appLogger.warnWithMetadata(
+        `Failed to read roles cache`,
+        { error: error instanceof Error ? error.message : 'unknown error' },
+        RoleService.name,
       );
     }
 
     const roles = await this.roleRepository.find({
-      order: {
-        level: 'DESC',
-        name: 'ASC',
-      },
+      order: { level: 'DESC', name: 'ASC' },
     });
 
     try {
@@ -56,8 +57,10 @@ export class RoleService {
         this.getRolesCacheTtlSeconds(),
       );
     } catch (error) {
-      this.logger.warn(
-        `Failed to write roles cache: ${error instanceof Error ? error.message : 'unknown error'}`,
+      this.appLogger.warnWithMetadata(
+        `Failed to write roles cache`,
+        { error: error instanceof Error ? error.message : 'unknown error' },
+        RoleService.name,
       );
     }
 
@@ -66,19 +69,15 @@ export class RoleService {
 
   async findByCode(code: string): Promise<RoleEntity | null> {
     return this.roleRepository.findOne({
-      where: {
-        code: this.normalizeRoleCode(code),
-      },
+      where: { code: this.normalizeRoleCode(code) },
     });
   }
 
   async findByCodeOrThrow(code: string): Promise<RoleEntity> {
     const role = await this.findByCode(code);
-
     if (!role) {
       throw new NotFoundException(`Role '${code}' was not found`);
     }
-
     return role;
   }
 
@@ -86,23 +85,32 @@ export class RoleService {
     return actorRole.level > targetRole.level;
   }
 
+  /**
+   * FIXED MED-02: Batched seed queries.
+   * Load all existing permissions and frontend routes in two queries instead of
+   * N individual findOne calls — reduces startup time from O(n) to O(1) queries
+   * for reads.
+   */
   async seedDefaults(): Promise<void> {
     const frontendRoutes = await this.seedFrontendRoutes();
+
+    // Batch-load all existing permissions in one query
+    const existingPerms = await this.permissionRepository.find();
+    const permMap = new Map(
+      existingPerms.map((p) => [`${p.action}:${p.resource}`, p]),
+    );
 
     for (const definition of DEFAULT_ROLE_DEFINITIONS) {
       const permissions: PermissionEntity[] = [];
 
       for (const permissionDefinition of definition.permissions) {
-        let permission = await this.permissionRepository.findOne({
-          where: {
-            action: permissionDefinition.action,
-            resource: permissionDefinition.resource,
-          },
-        });
+        const permKey = `${permissionDefinition.action}:${permissionDefinition.resource}`;
+        let permission = permMap.get(permKey);
 
         if (!permission) {
           permission = this.permissionRepository.create(permissionDefinition);
           permission = await this.permissionRepository.save(permission);
+          permMap.set(permKey, permission);
         }
 
         permissions.push(permission);
@@ -133,9 +141,7 @@ export class RoleService {
 
     for (const definition of DEFAULT_FRONTEND_ROUTE_DEFINITIONS) {
       const existingRoute = await this.frontendRouteRepository.findOne({
-        where: {
-          key: definition.key,
-        },
+        where: { key: definition.key },
       });
       const frontendRoute =
         existingRoute ?? this.frontendRouteRepository.create();
@@ -164,7 +170,6 @@ export class RoleService {
   private getRolesCacheTtlSeconds(): number {
     const ttl =
       this.configService.get<number>('api.cache.rolesTtlSeconds') ?? 60;
-
     return Math.max(ttl, 1);
   }
 
@@ -172,8 +177,10 @@ export class RoleService {
     try {
       await this.redisService.delete(this.getRolesCacheKey());
     } catch (error) {
-      this.logger.warn(
-        `Failed to invalidate roles cache: ${error instanceof Error ? error.message : 'unknown error'}`,
+      this.appLogger.warnWithMetadata(
+        `Failed to invalidate roles cache`,
+        { error: error instanceof Error ? error.message : 'unknown error' },
+        RoleService.name,
       );
     }
   }

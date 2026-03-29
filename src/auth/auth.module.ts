@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthBootstrapService } from './auth-bootstrap.service';
@@ -20,14 +19,14 @@ import { RoleService } from './role.service';
       RoleEntity,
       UserEntity,
     ]),
-    JwtModule.registerAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('auth.accessTokenSecret') ??
-          'change-me-access-token-secret',
-      }),
-    }),
+    /**
+     * FIXED HIGH-04: JwtModule is registered WITHOUT a module-level secret.
+     * All token signing and verification in AuthService and JwtGuard explicitly
+     * pass { secret } via the options argument to signAsync/verifyAsync.
+     * This prevents the module-level secret being silently applied to refresh
+     * token verification (which uses a different secret).
+     */
+    JwtModule.register({}),
   ],
   controllers: [AuthController],
   providers: [AuthBootstrapService, AuthService, JwtGuard, RoleService],

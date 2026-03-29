@@ -1,6 +1,8 @@
 import type { FrontendRouteEntity } from './entities/frontend-route.entity';
 import type { RoleEntity } from './entities/role.entity';
 import type { UserEntity } from './entities/user.entity';
+// FIXED HIGH-02: import UserStatus to use in SafeUser instead of widening to string
+import type { UserStatus } from './types/user-status.type';
 
 export const STUDENT_ROLE_CODE = 'STUDENT';
 export const SYSTEM_ADMIN_ROLE_CODE = 'SYSTEM_ADMIN';
@@ -35,7 +37,8 @@ export interface SafeUser {
   id: string;
   name: string;
   email: string;
-  status: string;
+  // FIXED: was `string`, now properly typed as the union literal type
+  status: UserStatus;
   role: RoleView;
   createdById: string | null;
   createdAt: Date;
@@ -116,10 +119,22 @@ export function toSafeUser(user: UserEntity): SafeUser {
     id: user.id,
     name: user.name,
     email: user.email,
-    status: user.status,
+    status: user.status, // now correctly UserStatus, not widened to string
     role: toRoleView(user.role),
     createdById: user.createdById,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };
+}
+
+// ── Runtime type guard for Redis cache validation ────────────────────────────
+// FIXED HIGH-03: used in getJson() calls for RefreshSessionRecord
+export function isRefreshSessionRecord(v: unknown): v is RefreshSessionRecord {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as Record<string, unknown>).userId === 'string' &&
+    typeof (v as Record<string, unknown>).roleCode === 'string' &&
+    typeof (v as Record<string, unknown>).refreshTokenHash === 'string'
+  );
 }

@@ -34,10 +34,8 @@ export class CachePolicyInterceptor implements NestInterceptor {
       response.setHeader('Vary', policy.vary.join(', '));
     }
 
-    if (cacheControl === 'no-store') {
-      response.setHeader('Pragma', 'no-cache');
-      response.setHeader('Expires', '0');
-    }
+    // FIXED: Removed HTTP/1.0 Pragma and Expires headers — Cache-Control is sufficient
+    // for all modern HTTP/1.1+ clients and API consumers.
 
     return next.handle();
   }

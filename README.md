@@ -1,5 +1,13 @@
 # School Management System
 
+### **Start in Dev-mode**
+
+```
+npm install
+npm run docker:down  
+npm run docker:up                                                
+```
+
 NestJS backend for a school management system with:
 
 - PostgreSQL for persisted users, roles, permissions, and frontend route grants

@@ -4,10 +4,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { SYSTEM_ADMIN_ROLE_CODE } from './auth.types';
+// FIXED MED-07: single source of truth
+import { BCRYPT_ROUNDS } from './auth.constants';
 import { UserEntity } from './entities/user.entity';
 import { RoleService } from './role.service';
-
-const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class AuthBootstrapService implements OnModuleInit {
