@@ -1,0 +1,734 @@
+
+--- START OF FILE: .prettierrc ---
+
+{
+  "singleQuote": true,
+  "trailingComma": "all"
+}
+
+--- END OF FILE: .prettierrc ---
+
+
+--- START OF FILE: eslint.config.mjs ---
+
+// @ts-check
+import eslint from '@eslint/js';
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+  {
+    ignores: ['eslint.config.mjs'],
+  },
+  eslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  eslintPluginPrettierRecommended,
+  {
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+      },
+      sourceType: 'commonjs',
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+      "prettier/prettier": ["error", { endOfLine: "auto" }],
+    },
+  },
+);
+
+--- END OF FILE: eslint.config.mjs ---
+
+
+--- START OF FILE: nest-cli.json ---
+
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+
+--- END OF FILE: nest-cli.json ---
+
+
+--- START OF FILE: package.json ---
+
+{
+  "name": "school-management-system",
+  "version": "0.0.1",
+  "description": "",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.18.0",
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.10.7",
+    "@types/supertest": "^6.0.2",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^16.0.0",
+    "jest": "^30.0.0",
+    "prettier": "^3.4.2",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  }
+}
+
+--- END OF FILE: package.json ---
+
+
+--- START OF FILE: src\app.controller.spec.ts ---
+
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+describe('AppController', () => {
+  let appController: AppController;
+
+  beforeEach(async () => {
+    const app: TestingModule = await Test.createTestingModule({
+      controllers: [AppController],
+      providers: [AppService],
+    }).compile();
+
+    appController = app.get<AppController>(AppController);
+  });
+
+  describe('root', () => {
+    it('should return "Hello World!"', () => {
+      expect(appController.getHello()).toBe('Hello World!');
+    });
+  });
+});
+
+--- END OF FILE: src\app.controller.spec.ts ---
+
+
+--- START OF FILE: src\app.controller.ts ---
+
+import { Controller, Get } from '@nestjs/common';
+import { AppService } from './app.service';
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+}
+
+--- END OF FILE: src\app.controller.ts ---
+
+
+--- START OF FILE: src\app.module.ts ---
+
+import { Module } from '@nestjs/common';
+import { AuthModule } from './auth/auth.module';
+
+@Module({
+  imports: [AuthModule],
+})
+export class AppModule {}
+
+--- END OF FILE: src\app.module.ts ---
+
+
+--- START OF FILE: src\app.service.ts ---
+
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Hello World!';
+  }
+}
+
+--- END OF FILE: src\app.service.ts ---
+
+
+--- START OF FILE: src\auth\auth.controller.ts ---
+
+import {
+  Controller,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import { JwtGuard } from './guards/jwt.guard';
+
+@Controller('auth') // all routes start with /auth
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  // POST /auth/register
+  // Protected: must be logged in to register someone
+  @Post('register')
+  @UseGuards(JwtGuard) // must be authenticated
+  async register(
+    @Body() dto: RegisterDto, // validated automatically
+    @Req() req: any, // contains logged-in user
+  ) {
+    return this.authService.register(dto, req.user);
+  }
+
+  // PATCH /auth/users/:userId/role
+  // Change a user's role (promote or demote)
+  @Patch('users/:userId/role')
+  @UseGuards(JwtGuard)
+  async changeRole(
+    @Param('userId') userId: string, // from URL
+    @Body('roleId') roleId: string, // from request body
+    @Req() req: any,
+  ) {
+    return this.authService.changeRole(userId, roleId, req.user);
+  }
+}
+
+--- END OF FILE: src\auth\auth.controller.ts ---
+
+
+--- START OF FILE: src\auth\auth.module.ts ---
+
+import { Module } from '@nestjs/common';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { RoleService } from './role.service';
+
+@Module({
+  controllers: [AuthController],
+  providers: [AuthService, RoleService],
+  exports: [AuthService, RoleService], // other modules can use these
+})
+export class AuthModule {}
+
+--- END OF FILE: src\auth\auth.module.ts ---
+
+
+--- START OF FILE: src\auth\auth.service.ts ---
+
+import {
+  Injectable,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import { v4 as uuid } from 'uuid';
+import { RegisterDto } from './dto/register.dto';
+import { userStore } from './store/user.store';
+import { canManage } from './config/hierarchy.config';
+import { RoleService } from './role.service';
+import { IUser } from './interfaces/user.interface';
+
+@Injectable()
+export class AuthService {
+  constructor(private readonly roleService: RoleService) {}
+
+  // ─── REGISTER ───────────────────────────────────────────
+  async register(
+    dto: RegisterDto,
+    requester: IUser, // who is making this request
+  ): Promise<Omit<IUser, 'passwordHash'>> {
+    // STEP 1: Hierarchy check
+    // Can the requester create a user with targetRole?
+    const requesterRole = requester.roles[0];
+    if (!canManage(requesterRole, dto.targetRole)) {
+      throw new ForbiddenException(
+        `A ${requesterRole} cannot register a ${dto.targetRole}`,
+      );
+    }
+
+    // STEP 2: Duplicate email check
+    const existing = userStore.findByEmail(dto.email);
+    if (existing) {
+      throw new ConflictException('Email already registered');
+    }
+
+    // STEP 3: Hash the password
+    // bcrypt adds "salt" — same password → different hash every time
+    // 10 = cost factor (how hard to crack)
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    // STEP 4: Build user object
+    const newUser: IUser = {
+      id: uuid(), // random unique ID
+      name: dto.name,
+      email: dto.email,
+      passwordHash, // NEVER store plain password
+      roles: [dto.targetRole], // assign the requested role
+      status: 'PENDING', // must be activated
+      createdBy: requester.id, // audit trail
+      createdAt: new Date(),
+    };
+
+    // STEP 5: Save to store
+    userStore.add(newUser);
+
+    // STEP 6: Return user WITHOUT the password hash
+    // Never send passwordHash back in any response
+    const { passwordHash: _, ...safeUser } = newUser;
+    return safeUser;
+  }
+
+  // ─── PROMOTE / DEMOTE ───────────────────────────────────
+  async changeRole(
+    targetUserId: string,
+    newRoleId: string,
+    requester: IUser,
+  ): Promise<Omit<IUser, 'passwordHash'>> {
+    // Can requester manage the new role?
+    const requesterRole = requester.roles[0];
+    if (!canManage(requesterRole, newRoleId)) {
+      throw new ForbiddenException(
+        `A ${requesterRole} cannot assign ${newRoleId}`,
+      );
+    }
+
+    // Does target user exist?
+    const targetUser = userStore.findById(targetUserId);
+    if (!targetUser) {
+      throw new ForbiddenException('User not found');
+    }
+
+    // Can requester manage target's CURRENT role too?
+    // (prevents hijacking a higher-level user)
+    if (!canManage(requesterRole, targetUser.roles[0])) {
+      throw new ForbiddenException(
+        `A ${requesterRole} cannot modify a ${targetUser.roles[0]}`,
+      );
+    }
+
+    // Update role
+    userStore.updateRoles(targetUserId, [newRoleId]);
+
+    const { passwordHash: _, ...safeUser } = userStore.findById(targetUserId)!;
+    return safeUser;
+  }
+}
+
+--- END OF FILE: src\auth\auth.service.ts ---
+
+
+--- START OF FILE: src\auth\config\hierarchy.config.ts ---
+
+// WHO can onboard/promote/demote WHOM
+// Key   = the person doing the action
+// Value = array of role IDs they can manage
+
+export const HIERARCHY_CONFIG: Record<string, string[]> = {
+  SYSTEM_ADMIN: ['PRINCIPAL', 'CLASS_TEACHER', 'STUDENT'],
+  PRINCIPAL: ['CLASS_TEACHER', 'STUDENT'],
+  CLASS_TEACHER: ['STUDENT'],
+  STUDENT: [], // students cannot manage anyone
+};
+
+// Helper: can roleA manage roleB?
+export function canManage(actorRoleId: string, targetRoleId: string): boolean {
+  const manageable = HIERARCHY_CONFIG[actorRoleId] ?? [];
+  return manageable.includes(targetRoleId);
+}
+
+--- END OF FILE: src\auth\config\hierarchy.config.ts ---
+
+
+--- START OF FILE: src\auth\config\roles.config.ts ---
+
+import { IRoleWithPermissions } from '../interfaces/role.interface';
+
+// ⚠️ THIS FILE moves to DB later.
+// The REST of the codebase never changes.
+// Only this file gets replaced by a DB query.
+
+export const ROLES_CONFIG: IRoleWithPermissions[] = [
+  {
+    id: 'SYSTEM_ADMIN',
+    name: 'System Admin',
+    level: 100,
+    permissions: [
+      { action: 'CREATE', resource: 'users', description: 'Create any user' },
+      { action: 'DELETE', resource: 'users', description: 'Delete any user' },
+      { action: 'ASSIGN', resource: 'roles', description: 'Assign any role' },
+      { action: 'READ', resource: '*', description: 'Read everything' },
+    ],
+  },
+  {
+    id: 'PRINCIPAL',
+    name: 'Principal',
+    level: 80,
+    permissions: [
+      {
+        action: 'CREATE',
+        resource: 'teachers',
+        description: 'Onboard teachers',
+      },
+      {
+        action: 'ASSIGN',
+        resource: 'roles',
+        description: 'Assign roles below level 80',
+      },
+      { action: 'READ', resource: '*', description: 'Read everything' },
+    ],
+  },
+  {
+    id: 'CLASS_TEACHER',
+    name: 'Class Teacher',
+    level: 60,
+    permissions: [
+      {
+        action: 'CREATE',
+        resource: 'students',
+        description: 'Enroll students',
+      },
+      { action: 'READ', resource: 'students', description: 'View students' },
+      {
+        action: 'READ',
+        resource: 'attendance',
+        description: 'View attendance',
+      },
+    ],
+  },
+  {
+    id: 'STUDENT',
+    name: 'Student',
+    level: 20,
+    permissions: [
+      { action: 'READ', resource: 'self', description: 'View own data only' },
+    ],
+  },
+];
+
+--- END OF FILE: src\auth\config\roles.config.ts ---
+
+
+--- START OF FILE: src\auth\dto\register.dto.ts ---
+
+import { IsEmail, IsString, MinLength, IsIn } from 'class-validator';
+
+// The SHAPE and RULES of a registration request
+export class RegisterDto {
+  @IsString()
+  name: string; // must be a string
+
+  @IsEmail()
+  email: string; // must be valid email format
+
+  @IsString()
+  @MinLength(8)
+  password: string; // min 8 characters
+
+  @IsString()
+  @IsIn(['PRINCIPAL', 'CLASS_TEACHER', 'STUDENT'])
+  targetRole: string; // only these roles allowed
+  // SYSTEM_ADMIN cannot be
+  // self-assigned — ever
+}
+
+--- END OF FILE: src\auth\dto\register.dto.ts ---
+
+
+--- START OF FILE: src\auth\interfaces\role.interface.ts ---
+
+// What a "Role" looks like in our system
+export interface IRole {
+  id: string; // unique role ID e.g. 'SYSTEM_ADMIN'
+  name: string; // display name e.g. 'System Admin'
+  level: number; // hierarchy level — higher = more power
+  // SYSTEM_ADMIN=100, PRINCIPAL=80,
+  // CLASS_TEACHER=60, STUDENT=20
+}
+
+// What a "Permission" looks like
+export interface IPermission {
+  action: string; // e.g. 'CREATE_USER'
+  resource: string; // e.g. 'students'
+  description: string; // human readable
+}
+
+// What a "Role with Permissions" looks like
+export interface IRoleWithPermissions extends IRole {
+  permissions: IPermission[];
+}
+
+--- END OF FILE: src\auth\interfaces\role.interface.ts ---
+
+
+--- START OF FILE: src\auth\interfaces\user.interface.ts ---
+
+export interface IUser {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  roles: string[]; // e.g. ['CLASS_TEACHER']
+  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED';
+  createdBy: string; // who registered this user
+  createdAt: Date;
+}
+
+--- END OF FILE: src\auth\interfaces\user.interface.ts ---
+
+
+--- START OF FILE: src\auth\role.service.ts ---
+
+import { Injectable } from '@nestjs/common';
+import { ROLES_CONFIG } from './config/roles.config';
+import { IRoleWithPermissions } from './interfaces/role.interface';
+
+@Injectable()
+export class RoleService {
+  // Find a role by its ID
+  findById(roleId: string): IRoleWithPermissions | undefined {
+    return ROLES_CONFIG.find((role) => role.id === roleId);
+  }
+
+  // Get all roles
+  findAll(): IRoleWithPermissions[] {
+    return ROLES_CONFIG;
+  }
+
+  // Check if a role has a specific permission
+  hasPermission(roleId: string, action: string, resource: string): boolean {
+    const role = this.findById(roleId);
+    if (!role) return false;
+
+    return role.permissions.some(
+      (p) =>
+        p.action === action && (p.resource === resource || p.resource === '*'),
+    );
+  }
+
+  // Get hierarchy level of a role
+  getLevel(roleId: string): number {
+    const role = this.findById(roleId);
+    return role?.level ?? 0;
+  }
+}
+
+--- END OF FILE: src\auth\role.service.ts ---
+
+
+--- START OF FILE: src\auth\store\user.store.ts ---
+
+import { IUser } from '../interfaces/user.interface';
+
+// IN-MEMORY store — replaces with Prisma/DB later
+// Same pattern as roles.config — swap this file, nothing else changes
+
+class UserStore {
+  private users: IUser[] = [];
+
+  // Add a user
+  add(user: IUser): IUser {
+    this.users.push(user);
+    return user;
+  }
+
+  // Find by email
+  findByEmail(email: string): IUser | undefined {
+    return this.users.find((u) => u.email === email);
+  }
+
+  // Find by ID
+  findById(id: string): IUser | undefined {
+    return this.users.find((u) => u.id === id);
+  }
+
+  // Get all users
+  findAll(): IUser[] {
+    return this.users;
+  }
+
+  // Update a user's roles (for promote/demote)
+  updateRoles(userId: string, roles: string[]): IUser | undefined {
+    const user = this.findById(userId);
+    if (!user) return undefined;
+    user.roles = roles;
+    return user;
+  }
+}
+
+// Singleton — one instance shared across the app
+export const userStore = new UserStore();
+
+--- END OF FILE: src\auth\store\user.store.ts ---
+
+
+--- START OF FILE: src\main.ts ---
+
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // This activates DTO validation on ALL routes
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // strip fields not in DTO
+      forbidNonWhitelisted: true, // error on unknown fields
+      transform: true, // auto-convert types
+    }),
+  );
+
+  await app.listen(3000);
+}
+bootstrap();
+
+--- END OF FILE: src\main.ts ---
+
+
+--- START OF FILE: test\app.e2e-spec.ts ---
+
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { App } from 'supertest/types';
+import { AppModule } from './../src/app.module';
+
+describe('AppController (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  it('/ (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/')
+      .expect(200)
+      .expect('Hello World!');
+  });
+});
+
+--- END OF FILE: test\app.e2e-spec.ts ---
+
+
+--- START OF FILE: test\jest-e2e.json ---
+
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  }
+}
+
+--- END OF FILE: test\jest-e2e.json ---
+
+
+--- START OF FILE: tsconfig.json ---
+
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false
+  }
+}
+
+--- END OF FILE: tsconfig.json ---
+

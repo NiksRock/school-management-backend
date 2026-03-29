@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+coverage
+dist
+node_modules
+npm-debug.log
+project_source_dump.txt
