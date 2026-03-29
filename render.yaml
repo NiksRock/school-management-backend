@@ -21,7 +21,7 @@ services:
       - key: DB_SSL_REJECT_UNAUTHORIZED
         value: "true"
       - key: DB_SYNC
-        value: "false"
+        value: "true"
       - key: DB_LOGGING
         value: "false"
       - key: UPSTASH_REDIS_REST_URL
