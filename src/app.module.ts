@@ -14,6 +14,8 @@ import appConfig from './config/app.config';
 import { LoggingModule } from './logging/logging.module';
 import { RequestLoggingInterceptor } from './logging/request-logging.interceptor';
 import { TypeOrmLogger } from './logging/typeorm.logger';
+import { MetricsInterceptor } from './metrics/metrics.interceptor';
+import { MetricsModule } from './metrics/metrics.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
@@ -24,9 +26,10 @@ import { RedisModule } from './redis/redis.module';
       load: [appConfig],
       expandVariables: true,
     }),
+    MetricsModule,
     LoggingModule,
     TypeOrmModule.forRootAsync({
-      imports: [LoggingModule],
+      imports: [LoggingModule, MetricsModule],
       inject: [ConfigService, TypeOrmLogger],
       useFactory: (
         configService: ConfigService,
@@ -37,6 +40,8 @@ import { RedisModule } from './redis/redis.module';
           configService.get<boolean>('database.enableChannelBinding') ?? false;
         const enableDatabaseQueryLogging =
           configService.get<boolean>('database.logging') ?? false;
+        const maxQueryExecutionTime =
+          configService.get<number>('metrics.slowDbQueryThresholdMs') ?? 500;
         const typeOrmLogging: LogLevel[] = enableDatabaseQueryLogging
           ? ['query', 'error', 'warn', 'schema']
           : ['error', 'warn'];
@@ -48,6 +53,7 @@ import { RedisModule } from './redis/redis.module';
             configService.get<boolean>('database.synchronize') ?? true,
           logging: typeOrmLogging,
           logger: typeOrmLogger,
+          maxQueryExecutionTime,
           ssl:
             configService.get<boolean | { rejectUnauthorized: boolean }>(
               'database.ssl',
@@ -118,6 +124,10 @@ import { RedisModule } from './redis/redis.module';
   ],
   providers: [
     AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MetricsInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: RequestLoggingInterceptor,

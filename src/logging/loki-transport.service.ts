@@ -25,7 +25,10 @@ export class LokiTransportService implements OnModuleDestroy {
   private readonly batchSize: number;
   private readonly flushIntervalMs: number;
   private readonly maxQueueSize: number;
+  private readonly retryBackoffMs: number;
   private readonly timeoutMs: number;
+  private droppedEntries = 0;
+  private nextRetryAt = 0;
   private queue: LokiQueueEntry[] = [];
   private flushTimer?: NodeJS.Timeout;
   private isFlushing = false;
@@ -45,6 +48,8 @@ export class LokiTransportService implements OnModuleDestroy {
       this.configService.get<number>('logging.loki.flushIntervalMs') ?? 5000;
     this.maxQueueSize =
       this.configService.get<number>('logging.loki.maxQueueSize') ?? 1000;
+    this.retryBackoffMs =
+      this.configService.get<number>('logging.loki.retryBackoffMs') ?? 5000;
     this.timeoutMs =
       this.configService.get<number>('logging.loki.timeoutMs') ?? 5000;
     this.enabled = Boolean(this.url && this.username && this.password);
@@ -78,7 +83,13 @@ export class LokiTransportService implements OnModuleDestroy {
     this.queue.push(entry);
 
     if (this.queue.length > this.maxQueueSize) {
+      this.droppedEntries += this.queue.length - this.maxQueueSize;
       this.queue = this.queue.slice(-this.maxQueueSize);
+      this.reportInternalError(
+        'Loki queue reached capacity and older entries were dropped',
+        new Error(`Dropped ${this.droppedEntries} log entries`),
+      );
+      this.droppedEntries = 0;
     }
 
     if (this.queue.length >= this.batchSize) {
@@ -95,7 +106,12 @@ export class LokiTransportService implements OnModuleDestroy {
   }
 
   private async flush(force = false): Promise<void> {
-    if (!this.enabled || this.isFlushing || this.queue.length === 0) {
+    if (
+      !this.enabled ||
+      this.isFlushing ||
+      this.queue.length === 0 ||
+      (!force && Date.now() < this.nextRetryAt)
+    ) {
       return;
     }
 
@@ -105,8 +121,10 @@ export class LokiTransportService implements OnModuleDestroy {
 
     try {
       await this.pushBatch(batch);
+      this.nextRetryAt = 0;
     } catch (error) {
       this.queue = [...batch, ...this.queue].slice(-this.maxQueueSize);
+      this.nextRetryAt = Date.now() + this.retryBackoffMs;
       this.reportInternalError('Failed to push logs to Grafana Loki', error);
     } finally {
       this.isFlushing = false;

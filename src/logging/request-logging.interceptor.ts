@@ -7,11 +7,13 @@ import {
 import type { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
+import type { AuthenticatedRequest } from '../auth/guards/jwt.guard';
 import { AppLogger } from './app-logger.service';
 
-type RequestWithContext = Request & {
-  requestId?: string;
-};
+type RequestWithContext = AuthenticatedRequest &
+  Request & {
+    requestId?: string;
+  };
 
 @Injectable()
 export class RequestLoggingInterceptor implements NestInterceptor {
@@ -26,15 +28,23 @@ export class RequestLoggingInterceptor implements NestInterceptor {
     const request = http.getRequest<RequestWithContext>();
     const response = http.getResponse<Response>();
     const startedAt = process.hrtime.bigint();
+    const path = request.originalUrl || request.url;
 
     return next.handle().pipe(
       finalize(() => {
+        if (path === '/metrics') {
+          return;
+        }
+
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
         const statusCode = response.statusCode;
         const metadata = {
           event: 'http_request',
+          authenticated: Boolean(request.user?.id),
+          contentLength: response.getHeader('content-length'),
           method: request.method,
-          path: request.originalUrl || request.url,
+          path,
+          route: this.resolveRoute(request),
           statusCode,
           responseTimeMs: Number(durationMs.toFixed(2)),
           ip: request.ip,
@@ -57,5 +67,20 @@ export class RequestLoggingInterceptor implements NestInterceptor {
         );
       }),
     );
+  }
+
+  private resolveRoute(request: RequestWithContext): string {
+    const route = request.route as { path?: unknown } | undefined;
+    const routePath = typeof route?.path === 'string' ? route.path : undefined;
+
+    if (!routePath) {
+      return 'unmatched';
+    }
+
+    if (request.baseUrl) {
+      return `${request.baseUrl}${routePath}`;
+    }
+
+    return routePath;
   }
 }

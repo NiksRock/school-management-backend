@@ -146,11 +146,17 @@ export class AppLogger implements LoggerService {
     context?: string,
     stack?: string,
   ): void {
-    const requestId = this.requestContextService.getRequestId();
+    const requestContext = this.requestContextService.getContext();
     const consoleRecord: LogMetadata = {
       service: this.serviceName,
       environment: this.environment,
-      ...(requestId ? { requestId } : {}),
+      ...(requestContext?.requestId
+        ? { requestId: requestContext.requestId }
+        : {}),
+      ...(requestContext?.userId ? { userId: requestContext.userId } : {}),
+      ...(requestContext?.sessionId
+        ? { sessionId: requestContext.sessionId }
+        : {}),
       ...(context ? { context } : {}),
       ...metadata,
       ...(stack ? { stack } : {}),

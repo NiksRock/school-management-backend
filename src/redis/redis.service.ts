@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { AppLogger } from '../logging/app-logger.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 type UpstashRestResponse<T> = {
   result?: T;
@@ -18,6 +19,7 @@ export class RedisService implements OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly appLogger: AppLogger,
+    private readonly metricsService: MetricsService,
   ) {
     this.restUrl = this.configService.get<string>('redis.restUrl');
     this.restToken = this.configService.get<string>('redis.restToken');
@@ -129,6 +131,10 @@ export class RedisService implements OnModuleDestroy {
     return Number(result);
   }
 
+  async ping(): Promise<string> {
+    return this.executeCommand<string>(['PING']);
+  }
+
   async onModuleDestroy(): Promise<void> {
     if (this.client) {
       await this.client.quit();
@@ -158,12 +164,14 @@ export class RedisService implements OnModuleDestroy {
         ...args.map((arg) => (typeof arg === 'string' ? arg : String(arg))),
       )) as T;
 
+      this.metricsService.recordRedisOperation(String(name), 'socket');
       this.logRedisOperation('Redis socket command executed', String(name), {
         backend: 'socket',
       });
 
       return result;
     } catch (error) {
+      this.metricsService.recordRedisOperationError(String(name), 'socket');
       this.appLogger.errorWithMetadata(
         'Redis socket command failed',
         {
@@ -204,12 +212,17 @@ export class RedisService implements OnModuleDestroy {
         );
       }
 
+      this.metricsService.recordRedisOperation(commandName, 'upstash_rest');
       this.logRedisOperation('Upstash REST command executed', commandName, {
         backend: 'upstash_rest',
       });
 
       return payload.result as T;
     } catch (error) {
+      this.metricsService.recordRedisOperationError(
+        commandName,
+        'upstash_rest',
+      );
       this.appLogger.errorWithMetadata(
         'Upstash REST command failed',
         {

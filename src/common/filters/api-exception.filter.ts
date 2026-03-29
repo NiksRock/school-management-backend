@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import type { AuthenticatedRequest } from '../../auth/guards/jwt.guard';
 import { AppLogger } from '../../logging/app-logger.service';
 
 type ErrorResponseBody = {
@@ -18,9 +19,10 @@ type ErrorResponseBody = {
   timestamp: string;
 };
 
-type RequestWithContext = Request & {
-  requestId?: string;
-};
+type RequestWithContext = AuthenticatedRequest &
+  Request & {
+    requestId?: string;
+  };
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -40,6 +42,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
           event: 'http_exception',
           method: request.method,
           path: request.originalUrl || request.url,
+          route: this.resolveRoute(request),
           statusCode,
           code: error.code,
           details: error.details,
@@ -54,6 +57,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
           event: 'http_exception',
           method: request.method,
           path: request.originalUrl || request.url,
+          route: this.resolveRoute(request),
           statusCode,
           code: error.code,
           details: error.details,
@@ -188,5 +192,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
       .replace(/[^a-zA-Z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '')
       .toUpperCase();
+  }
+
+  private resolveRoute(request: RequestWithContext): string {
+    const route = request.route as { path?: unknown } | undefined;
+    const routePath = typeof route?.path === 'string' ? route.path : undefined;
+
+    if (!routePath) {
+      return 'unmatched';
+    }
+
+    if (request.baseUrl) {
+      return `${request.baseUrl}${routePath}`;
+    }
+
+    return routePath;
   }
 }

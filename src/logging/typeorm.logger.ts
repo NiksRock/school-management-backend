@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Logger as TypeOrmLoggerInterface, QueryRunner } from 'typeorm';
+import { MetricsService } from '../metrics/metrics.service';
 import { AppLogger } from './app-logger.service';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class TypeOrmLogger implements TypeOrmLoggerInterface {
   constructor(
     private readonly appLogger: AppLogger,
     private readonly configService: ConfigService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   logQuery(
@@ -18,9 +20,11 @@ export class TypeOrmLogger implements TypeOrmLoggerInterface {
     void queryRunner;
 
     if (!this.shouldLogQueries()) {
+      this.metricsService.recordDbQuery(query);
       return;
     }
 
+    this.metricsService.recordDbQuery(query);
     this.appLogger.debugWithMetadata(
       'Database query executed',
       {
@@ -40,6 +44,7 @@ export class TypeOrmLogger implements TypeOrmLoggerInterface {
   ): void {
     void queryRunner;
 
+    this.metricsService.recordDbQueryError(query);
     this.appLogger.errorWithMetadata(
       'Database query failed',
       {
@@ -61,6 +66,7 @@ export class TypeOrmLogger implements TypeOrmLoggerInterface {
   ): void {
     void queryRunner;
 
+    this.metricsService.recordSlowDbQuery(time, query);
     this.appLogger.warnWithMetadata(
       'Database query was slow',
       {

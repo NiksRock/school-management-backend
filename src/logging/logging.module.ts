@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { MetricsModule } from '../metrics/metrics.module';
 import { AppLogger } from './app-logger.service';
 import { LokiTransportService } from './loki-transport.service';
 import { RequestContextService } from './request-context.service';
@@ -8,7 +9,7 @@ import { TypeOrmLogger } from './typeorm.logger';
 
 @Global()
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, MetricsModule],
   providers: [
     AppLogger,
     LokiTransportService,

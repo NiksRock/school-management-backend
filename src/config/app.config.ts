@@ -286,12 +286,34 @@ export default () => {
           process.env.GRAFANA_LOKI_FLUSH_INTERVAL_MS,
           5000,
         ),
+        retryBackoffMs: parseNumber(
+          process.env.GRAFANA_LOKI_RETRY_BACKOFF_MS,
+          5000,
+        ),
         timeoutMs: parseNumber(process.env.GRAFANA_LOKI_TIMEOUT_MS, 5000),
         maxQueueSize: parseNumber(
           process.env.GRAFANA_LOKI_MAX_QUEUE_SIZE,
           1000,
         ),
       },
+    },
+    metrics: {
+      defaultMetricsEnabled: parseBoolean(
+        process.env.METRICS_DEFAULT_METRICS_ENABLED,
+        true,
+      ),
+      dbPingIntervalMs: parseNumber(
+        process.env.METRICS_DB_PING_INTERVAL_MS,
+        30000,
+      ),
+      redisPingIntervalMs: parseNumber(
+        process.env.METRICS_REDIS_PING_INTERVAL_MS,
+        30000,
+      ),
+      slowDbQueryThresholdMs: parseNumber(
+        process.env.METRICS_SLOW_DB_QUERY_THRESHOLD_MS,
+        500,
+      ),
     },
   };
 };

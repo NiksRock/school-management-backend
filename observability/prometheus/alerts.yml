@@ -1,0 +1,58 @@
+groups:
+  - name: backend-observability
+    rules:
+      - alert: BackendServiceDown
+        expr: up{job="nestjs-app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: NestJS backend is down
+          description: Prometheus has failed to scrape the NestJS backend for more than 2 minutes.
+
+      - alert: BackendHighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_errors_total{job="nestjs-app"}[5m]))
+            /
+            clamp_min(sum(rate(http_server_requests_total{job="nestjs-app"}[5m])), 1)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: High backend error rate
+          description: The backend 5xx error rate has exceeded 5% over the last 10 minutes.
+
+      - alert: BackendHighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(http_server_request_duration_seconds_bucket{job="nestjs-app"}[5m])
+            )
+          ) > 0.75
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: High backend latency
+          description: The p95 backend latency has been above 750ms for 10 minutes.
+
+      - alert: BackendDatabaseUnavailable
+        expr: app_database_up{job="nestjs-app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Database connectivity failed
+          description: The backend cannot reach PostgreSQL.
+
+      - alert: BackendRedisUnavailable
+        expr: app_redis_up{job="nestjs-app"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis connectivity failed
+          description: The backend cannot reach Redis.

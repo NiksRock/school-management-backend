@@ -9,15 +9,17 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
 import { Repository } from 'typeorm';
+import { RequestContextService } from '../../logging/request-context.service';
+import { RedisService } from '../../redis/redis.service';
 import {
   ACCESS_TOKEN_TYPE,
   type RefreshSessionRecord,
   type SessionPayload,
 } from '../auth.types';
 import { UserEntity } from '../entities/user.entity';
-import { RedisService } from '../../redis/redis.service';
 
 export interface AuthenticatedRequest extends Request {
+  requestId?: string;
   user: UserEntity;
   sessionId: string;
 }
@@ -27,6 +29,7 @@ export class JwtGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly requestContextService: RequestContextService,
     private readonly redisService: RedisService,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
@@ -74,6 +77,10 @@ export class JwtGuard implements CanActivate {
 
     req.user = user;
     req.sessionId = payload.sessionId;
+    this.requestContextService.assign({
+      userId: user.id,
+      sessionId: payload.sessionId,
+    });
     return true;
   }
 
