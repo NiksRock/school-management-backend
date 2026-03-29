@@ -4,9 +4,9 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { AppLogger } from '../../logging/app-logger.service';
 
 type ErrorResponseBody = {
   code: string;
@@ -24,7 +24,7 @@ type RequestWithContext = Request & {
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(ApiExceptionFilter.name);
+  constructor(private readonly appLogger: AppLogger) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
@@ -34,11 +34,31 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const error = this.buildErrorResponse(exception, request, statusCode);
 
     if (statusCode >= 500) {
-      this.logger.error(
-        `[${request.requestId ?? 'n/a'}] ${request.method} ${request.originalUrl}`,
-        exception instanceof Error
-          ? exception.stack
-          : JSON.stringify(exception),
+      this.appLogger.errorWithMetadata(
+        'Unhandled exception',
+        {
+          event: 'http_exception',
+          method: request.method,
+          path: request.originalUrl || request.url,
+          statusCode,
+          code: error.code,
+          details: error.details,
+        },
+        ApiExceptionFilter.name,
+        exception,
+      );
+    } else {
+      this.appLogger.warnWithMetadata(
+        'HTTP exception',
+        {
+          event: 'http_exception',
+          method: request.method,
+          path: request.originalUrl || request.url,
+          statusCode,
+          code: error.code,
+          details: error.details,
+        },
+        ApiExceptionFilter.name,
       );
     }
 

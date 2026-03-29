@@ -6,10 +6,19 @@ import cookieParser from 'cookie-parser';
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
+import { AppLogger } from './logging/app-logger.service';
+import { RequestContextService } from './logging/request-context.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+  });
+  const appLogger = app.get(AppLogger);
   const configService = app.get(ConfigService);
+  const requestContextService = app.get(RequestContextService);
+
+  app.useLogger(appLogger);
+  app.flushLogs();
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const incomingRequestId = req.headers['x-request-id'];
@@ -20,9 +29,11 @@ async function bootstrap(): Promise<void> {
           ? incomingRequestId[0]
           : randomUUID();
 
-    (req as Request & { requestId?: string }).requestId = requestId;
-    res.setHeader('X-Request-Id', requestId);
-    next();
+    requestContextService.run({ requestId }, () => {
+      (req as Request & { requestId?: string }).requestId = requestId;
+      res.setHeader('X-Request-Id', requestId);
+      next();
+    });
   });
 
   app.use(cookieParser());

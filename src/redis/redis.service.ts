@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { AppLogger } from '../logging/app-logger.service';
 
 type UpstashRestResponse<T> = {
   result?: T;
@@ -10,12 +11,18 @@ type UpstashRestResponse<T> = {
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   private readonly client?: Redis;
+  private readonly enableRedisOperationLogs: boolean;
   private readonly restUrl?: string;
   private readonly restToken?: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly appLogger: AppLogger,
+  ) {
     this.restUrl = this.configService.get<string>('redis.restUrl');
     this.restToken = this.configService.get<string>('redis.restToken');
+    this.enableRedisOperationLogs =
+      this.configService.get<boolean>('logging.redisOperations') ?? false;
 
     if (this.restUrl && this.restToken) {
       return;
@@ -112,41 +119,101 @@ export class RedisService implements OnModuleDestroy {
   }
 
   private async executeCommand<T>(command: Array<string | number>): Promise<T> {
+    const [name] = command;
+
     if (this.restUrl && this.restToken) {
-      return this.executeRestCommand(command);
+      return this.executeRestCommand(command, String(name));
     }
 
-    const [name, ...args] = command;
-    return this.getClient().call(
-      String(name),
-      ...args.map((arg) => (typeof arg === 'string' ? arg : String(arg))),
-    ) as Promise<T>;
+    const [, ...args] = command;
+
+    try {
+      const result = (await this.getClient().call(
+        String(name),
+        ...args.map((arg) => (typeof arg === 'string' ? arg : String(arg))),
+      )) as T;
+
+      this.logRedisOperation('Redis socket command executed', String(name), {
+        backend: 'socket',
+      });
+
+      return result;
+    } catch (error) {
+      this.appLogger.errorWithMetadata(
+        'Redis socket command failed',
+        {
+          backend: 'socket',
+          command: String(name),
+        },
+        RedisService.name,
+        error,
+      );
+      throw error;
+    }
   }
 
   private async executeRestCommand<T>(
     command: Array<string | number>,
+    commandName: string,
   ): Promise<T> {
     if (!this.restUrl || !this.restToken) {
       throw new Error('Upstash REST Redis is not configured');
     }
 
-    const response = await fetch(this.restUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.restToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(command),
-    });
+    try {
+      const response = await fetch(this.restUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.restToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(command),
+      });
 
-    const payload = (await response.json()) as UpstashRestResponse<T>;
+      const payload = (await response.json()) as UpstashRestResponse<T>;
 
-    if (!response.ok || payload.error) {
-      throw new Error(
-        payload.error ?? `Upstash Redis request failed with ${response.status}`,
+      if (!response.ok || payload.error) {
+        throw new Error(
+          payload.error ??
+            `Upstash Redis request failed with ${response.status}`,
+        );
+      }
+
+      this.logRedisOperation('Upstash REST command executed', commandName, {
+        backend: 'upstash_rest',
+      });
+
+      return payload.result as T;
+    } catch (error) {
+      this.appLogger.errorWithMetadata(
+        'Upstash REST command failed',
+        {
+          backend: 'upstash_rest',
+          command: commandName,
+        },
+        RedisService.name,
+        error,
       );
+      throw error;
+    }
+  }
+
+  private logRedisOperation(
+    message: string,
+    commandName: string,
+    metadata: Record<string, unknown>,
+  ): void {
+    if (!this.enableRedisOperationLogs) {
+      return;
     }
 
-    return payload.result as T;
+    this.appLogger.debugWithMetadata(
+      message,
+      {
+        command: commandName,
+        ...metadata,
+      },
+      RedisService.name,
+    );
   }
 }

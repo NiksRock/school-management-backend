@@ -33,6 +33,10 @@ function parseStringList(
     .filter(Boolean);
 }
 
+function parseLogLevel(value: string | undefined, fallback: string): string {
+  return (value ?? fallback).toLowerCase();
+}
+
 type DatabaseUrlMetadata = {
   sslMode?: string;
   requiresChannelBinding: boolean;
@@ -161,6 +165,10 @@ function resolveRedisTls(
 
 export default () => {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
+  const logLevel = parseLogLevel(
+    process.env.LOG_LEVEL,
+    nodeEnv === 'production' ? 'info' : 'debug',
+  );
   const configuredDatabaseUrl = process.env.DATABASE_URL;
   const activeDatabaseUrl = shouldUseManagedConnection(
     nodeEnv,
@@ -264,6 +272,26 @@ export default () => {
       name: process.env.ADMIN_NAME ?? 'System Admin',
       email: process.env.ADMIN_EMAIL ?? 'admin@school.local',
       password: process.env.ADMIN_PASSWORD ?? 'Admin@12345',
+    },
+    logging: {
+      serviceName: process.env.SERVICE_NAME ?? 'school-management-system',
+      level: logLevel,
+      redisOperations: parseBoolean(process.env.LOG_REDIS_OPERATIONS, false),
+      loki: {
+        url: process.env.GRAFANA_LOKI_URL,
+        username: process.env.GRAFANA_LOKI_USERNAME,
+        password: process.env.GRAFANA_LOKI_PASSWORD,
+        batchSize: parseNumber(process.env.GRAFANA_LOKI_BATCH_SIZE, 50),
+        flushIntervalMs: parseNumber(
+          process.env.GRAFANA_LOKI_FLUSH_INTERVAL_MS,
+          5000,
+        ),
+        timeoutMs: parseNumber(process.env.GRAFANA_LOKI_TIMEOUT_MS, 5000),
+        maxQueueSize: parseNumber(
+          process.env.GRAFANA_LOKI_MAX_QUEUE_SIZE,
+          1000,
+        ),
+      },
     },
   };
 };

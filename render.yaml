@@ -58,6 +58,26 @@ services:
         value: "300"
       - key: API_CACHE_ROLES_TTL_SECONDS
         value: "60"
+      - key: SERVICE_NAME
+        value: school-management-system-api
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_REDIS_OPERATIONS
+        value: "false"
+      - key: GRAFANA_LOKI_URL
+        sync: false
+      - key: GRAFANA_LOKI_USERNAME
+        sync: false
+      - key: GRAFANA_LOKI_PASSWORD
+        sync: false
+      - key: GRAFANA_LOKI_BATCH_SIZE
+        value: "50"
+      - key: GRAFANA_LOKI_FLUSH_INTERVAL_MS
+        value: "5000"
+      - key: GRAFANA_LOKI_TIMEOUT_MS
+        value: "5000"
+      - key: GRAFANA_LOKI_MAX_QUEUE_SIZE
+        value: "1000"
       - key: ADMIN_NAME
         value: "System Admin"
       - key: ADMIN_EMAIL
