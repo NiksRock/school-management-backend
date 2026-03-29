@@ -65,6 +65,7 @@ import { RedisModule } from './redis/redis.module';
       },
     }),
     ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
       inject: [ConfigService, RedisThrottlerStorageService],
       useFactory: (
         configService: ConfigService,
@@ -102,7 +103,6 @@ import { RedisModule } from './redis/redis.module';
   ],
   providers: [
     AppService,
-    RedisThrottlerStorageService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
