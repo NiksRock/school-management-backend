@@ -40,7 +40,7 @@ async function bootstrap(): Promise<void> {
   );
 
   app.enableShutdownHooks();
-
+  //configService.get<string>('app.globalPrefix') && app.setGlobalPrefix(configService.get<string>('app.globalPrefix')!);
   const accessCookieName =
     configService.get<string>('auth.accessCookieName') ?? 'sms_access_token';
   const refreshCookieName =
