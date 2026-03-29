@@ -22,6 +22,10 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
 
     steps:
       - name: Checkout repository
@@ -40,19 +44,14 @@ jobs:
         run: npm run build
 
       - name: Deploy to Render with deploy hook
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        if: ${{ env.RENDER_DEPLOY_HOOK_URL != '' }}
         run: |
           curl --fail --silent --show-error \
             --request POST \
             "$RENDER_DEPLOY_HOOK_URL"
 
       - name: Deploy to Render with API
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL == '' && secrets.RENDER_API_KEY != '' && secrets.RENDER_SERVICE_ID != '' }}
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        if: ${{ env.RENDER_DEPLOY_HOOK_URL == '' && env.RENDER_API_KEY != '' && env.RENDER_SERVICE_ID != '' }}
         run: |
           curl --fail --silent --show-error \
             --request POST \
@@ -61,7 +60,7 @@ jobs:
             --header "Accept: application/json"
 
       - name: Fail when Render secrets are missing
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL == '' && (secrets.RENDER_API_KEY == '' || secrets.RENDER_SERVICE_ID == '') }}
+        if: ${{ env.RENDER_DEPLOY_HOOK_URL == '' && (env.RENDER_API_KEY == '' || env.RENDER_SERVICE_ID == '') }}
         run: |
           echo "Missing Render deployment secrets."
           echo "Set either:"
