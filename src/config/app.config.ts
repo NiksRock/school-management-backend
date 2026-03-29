@@ -86,6 +86,19 @@ export interface AppConfig {
     slowDbQueryThresholdMs: number;
   };
 }
+function parseSameSite(value: string | undefined): 'lax' | 'strict' | 'none' {
+  const normalized = value?.toLowerCase();
+
+  if (
+    normalized === 'lax' ||
+    normalized === 'strict' ||
+    normalized === 'none'
+  ) {
+    return normalized;
+  }
+
+  return 'lax'; // safe default
+}
 function parseNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -353,7 +366,7 @@ export default (): AppConfig => {
       accessCookieName: process.env.ACCESS_COOKIE_NAME ?? 'sms_access_token',
       refreshCookieName: process.env.REFRESH_COOKIE_NAME ?? 'sms_refresh_token',
       cookieDomain: process.env.COOKIE_DOMAIN,
-      cookieSameSite: process.env.COOKIE_SAME_SITE ?? 'lax',
+      cookieSameSite: parseSameSite(process.env.COOKIE_SAME_SITE) ?? 'lax',
       cookieSecure: parseBoolean(process.env.COOKIE_SECURE, false),
     },
     bootstrapAdmin: {
@@ -364,7 +377,7 @@ export default (): AppConfig => {
     logging: {
       serviceName: process.env.SERVICE_NAME ?? 'school-management-system',
       level: logLevel,
-      redisOperations: parseBoolean(process.env.LOG_REDIS_OPERATIONS, false),
+      logRedisOperations: parseBoolean(process.env.LOG_REDIS_OPERATIONS, false),
       loki: {
         url: process.env.GRAFANA_LOKI_URL,
         username: process.env.GRAFANA_LOKI_USERNAME,
