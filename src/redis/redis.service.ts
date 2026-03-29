@@ -49,6 +49,31 @@ export class RedisService implements OnModuleDestroy {
             this.configService.get<string>('redis.password') || undefined,
           db: this.configService.get<number>('redis.db') ?? 0,
         });
+
+    this.client.on('error', (error) => {
+      this.appLogger.errorWithMetadata(
+        'Redis client connection error',
+        {
+          backend: 'socket',
+          host: this.configService.get<string>('redis.host') ?? 'localhost',
+          port: this.configService.get<number>('redis.port') ?? 6379,
+        },
+        RedisService.name,
+        error,
+      );
+    });
+
+    this.client.on('reconnecting', () => {
+      this.appLogger.warnWithMetadata(
+        'Redis client reconnecting',
+        {
+          backend: 'socket',
+          host: this.configService.get<string>('redis.host') ?? 'localhost',
+          port: this.configService.get<number>('redis.port') ?? 6379,
+        },
+        RedisService.name,
+      );
+    });
   }
 
   async setJson(
